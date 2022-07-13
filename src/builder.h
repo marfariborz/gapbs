@@ -317,7 +317,7 @@ class BuilderBase {
     DestID_ **index = nullptr, **inv_index = nullptr;
     DestID_ *neighs = nullptr, *inv_neighs = nullptr;
     Timer t;
-    t.Start();
+    // t.Start();
     if (num_nodes_ == -1)
       num_nodes_ = FindMaxNodeID(el)+1;
     if (needs_weights_)
@@ -330,8 +330,8 @@ class BuilderBase {
         MakeCSR(el, true, &inv_index, &inv_neighs);
       }
     }
-    t.Stop();
-    PrintTime("Build Time", t.Seconds());
+    // t.Stop();
+    // PrintTime("Build Time", t.Seconds());
     if (symmetrize_)
       return CSRGraph<NodeID_, DestID_, invert>(num_nodes_, index, neighs);
     else

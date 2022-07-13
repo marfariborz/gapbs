@@ -116,13 +116,13 @@ class Generator {
   EdgeList GenerateEL(bool uniform) {
     EdgeList el;
     Timer t;
-    t.Start();
+    // t.Start();
     if (uniform)
       el = MakeUniformEL();
     else
       el = MakeRMatEL();
-    t.Stop();
-    PrintTime("Generate Time", t.Seconds());
+    // t.Stop();
+    // PrintTime("Generate Time", t.Seconds());
     return el;
   }
 
