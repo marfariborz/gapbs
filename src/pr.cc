@@ -1,6 +1,6 @@
 // Copyright (c) 2015, The Regents of the University of California (Regents)
 // See LICENSE.txt for license details
-
+#include <emmintrin.h>
 #include <algorithm>
 #include <iostream>
 #include <vector>
@@ -31,42 +31,53 @@ typedef float ScoreT;
 const float kDamp = 0.85;
 
 
+void force_nt_load(NodeID *p) {
+  _mm_prefetch (p, _MM_HINT_NTA);
+}
+
 pvector<ScoreT> PageRankPullGS(const Graph &g, int max_iters,
                              double epsilon = 0) {
   const ScoreT init_score = 1.0f / g.num_nodes();
-  const ScoreT base_score = (1.0f - kDamp) / g.num_nodes();
-  pvector<ScoreT> scores(g.num_nodes(), init_score);
+  // const ScoreT base_score = (1.0f - kDamp) / g.num_nodes();
+  // pvector<ScoreT> scores(g.num_nodes(), init_score);
   pvector<ScoreT> incoming_total(g.num_nodes(), 0);
-  pvector<ScoreT> outgoing_contrib(g.num_nodes());
+  pvector<ScoreT> outgoing_contrib(g.num_nodes()/2);
+  pvector<ScoreT> outgoing_contrib_n(g.num_nodes()/2);
   #pragma omp parallel for
-  for (NodeID n=0; n < g.num_nodes(); n++)
+  for (NodeID n=0; n < g.num_nodes()/2; n++)
     outgoing_contrib[n] = init_score / g.out_degree(n);
+  for (NodeID n=g.num_nodes()/2; n < g.num_nodes(); n++)
+    outgoing_contrib_n[n - g.num_nodes()/2] = init_score / g.out_degree(n);
   for (int iter=0; iter < max_iters; iter++) {
-    double error = 0;
-    #pragma omp parallel for reduction(+ : error) schedule(dynamic, 16384)
+    // double error = 0;
+    #pragma omp parallel for
     for (NodeID u=0; u < g.num_nodes(); u++) {
       for (NodeID v : g.in_neigh(u)){
-        if (v < (g.num_nodes()/2))
-          incoming_total[u] += outgoing_contrib[v];
+        force_nt_load(&v);
+        NodeID V = v;
+        if (V < g.num_nodes()/2)
+          incoming_total[u] += outgoing_contrib[V];
       }
     }
-    #pragma omp parallel for reduction(+ : error) schedule(dynamic, 16384)
+    #pragma omp parallel for
     for (NodeID u=0; u < g.num_nodes(); u++) {
       for (NodeID v : g.in_neigh(u)){
-        if ((g.num_nodes()/2) < v)
-          incoming_total[u] += outgoing_contrib[v];
+        force_nt_load(&v);
+        NodeID V = v;
+        if ((g.num_nodes()/2) <= V)
+          incoming_total[u] += outgoing_contrib_n[V];
       }
-      ScoreT old_score = scores[u];
-      scores[u] = base_score + kDamp * incoming_total[u];
-      error += fabs(scores[u] - old_score);
-      outgoing_contrib[u] = scores[u] / g.out_degree(u);
-      incoming_total[u] = 0;
+      // ScoreT old_score = scores[u];
+      // scores[u] = base_score + kDamp * incoming_total[u];
+      // error += fabs(incoming_total[u] - outgoing_contrib[u]);
+      // outgoing_contrib[u] = scores[u] / g.out_degree(u);
+      // incoming_total[u] = 0;
     }
-    printf(" %2d    %lf\n", iter, error);
-    if (error < epsilon)
-      break;
+    printf(" %2d\n", iter);
+    // if (error < epsilon)
+    //   break;
   }
-  return scores;
+  return incoming_total;
 }
 
 

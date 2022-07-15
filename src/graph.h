@@ -4,6 +4,7 @@
 #ifndef GRAPH_H_
 #define GRAPH_H_
 
+#include <emmintrin.h>
 #include <algorithm>
 #include <cinttypes>
 #include <cstddef>
@@ -112,8 +113,12 @@ class CSRGraph {
       start_offset_ = std::min(start_offset, max_offset);
     }
     typedef DestID_* iterator;
-    iterator begin() { return g_index_[n_] + start_offset_; }
-    iterator end()   { return g_index_[n_+1]; }
+    iterator begin() { 
+      _mm_prefetch (g_index_[n_], _MM_HINT_NTA);
+      return g_index_[n_] + start_offset_; }
+    iterator end()   { 
+      _mm_prefetch (g_index_[n_+1], _MM_HINT_NTA);
+      return g_index_[n_+1]; }
   };
 
   void ReleaseResources() {
@@ -217,6 +222,8 @@ class CSRGraph {
 
   Neighborhood in_neigh(NodeID_ n, OffsetT start_offset = 0) const {
     static_assert(MakeInverse, "Graph inversion disabled but reading inverse");
+    _mm_prefetch (&n, _MM_HINT_NTA);
+    
     return Neighborhood(n, in_index_, start_offset);
   }
 
