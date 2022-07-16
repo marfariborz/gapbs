@@ -35,6 +35,18 @@ void force_nt_load(NodeID *p) {
   _mm_prefetch (p, _MM_HINT_NTA);
 }
 
+void force_nt_store(__m64 *p, __m64 a) {
+   _mm_stream_pi(p, a);
+}
+
+__m128i force_nt_store(NodeID *a) {
+  __m128i zeros = {0, 0}; // chosen to use zeroing idiom;
+  __asm volatile("MOVNTDQA 64(%1), %0\n\t"
+                   :: "x" (zeros), "r" (&a): "memory");
+  return zeros;
+}
+
+
 pvector<ScoreT> PageRankPullGS(const Graph &g, int max_iters,
                              double epsilon = 0) {
   const ScoreT init_score = 1.0f / g.num_nodes();
@@ -53,19 +65,18 @@ pvector<ScoreT> PageRankPullGS(const Graph &g, int max_iters,
     #pragma omp parallel for
     for (NodeID u=0; u < g.num_nodes(); u++) {
       for (NodeID v : g.in_neigh(u)){
-        force_nt_load(&v);
-        NodeID V = v;
-        if (V < g.num_nodes()/2)
-          incoming_total[u] += outgoing_contrib[V];
+        // force_nt_store(&v);
+        if (v < g.num_nodes()/2){
+          incoming_total[u] += outgoing_contrib[v];
+          }
       }
     }
     #pragma omp parallel for
     for (NodeID u=0; u < g.num_nodes(); u++) {
       for (NodeID v : g.in_neigh(u)){
-        force_nt_load(&v);
-        NodeID V = v;
-        if ((g.num_nodes()/2) <= V)
-          incoming_total[u] += outgoing_contrib_n[V];
+        // force_nt_store(&v);
+        if ((g.num_nodes()/2) <= v)
+          incoming_total[u] += outgoing_contrib_n[v];
       }
       // ScoreT old_score = scores[u];
       // scores[u] = base_score + kDamp * incoming_total[u];

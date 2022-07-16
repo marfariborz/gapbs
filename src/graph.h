@@ -94,8 +94,6 @@ typedef int32_t SGID;
 typedef EdgePair<SGID> SGEdge;
 typedef int64_t SGOffset;
 
-
-
 template <class NodeID_, class DestID_ = NodeID_, bool MakeInverse = true>
 class CSRGraph {
   // Used for *non-negative* offsets within a neighborhood
@@ -107,6 +105,7 @@ class CSRGraph {
     DestID_** g_index_;
     OffsetT start_offset_;
    public:
+
     Neighborhood(NodeID_ n, DestID_** g_index, OffsetT start_offset) :
         n_(n), g_index_(g_index), start_offset_(0) {
       OffsetT max_offset = end() - begin();
@@ -114,6 +113,7 @@ class CSRGraph {
     }
     typedef DestID_* iterator;
     iterator begin() { 
+      DestID_ n = 0;
       _mm_prefetch (g_index_[n_], _MM_HINT_NTA);
       return g_index_[n_] + start_offset_; }
     iterator end()   { 
