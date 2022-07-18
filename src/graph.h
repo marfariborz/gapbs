@@ -112,13 +112,8 @@ class CSRGraph {
       start_offset_ = std::min(start_offset, max_offset);
     }
     typedef DestID_* iterator;
-    iterator begin() { 
-      DestID_ n = 0;
-      _mm_prefetch (g_index_[n_], _MM_HINT_NTA);
-      return g_index_[n_] + start_offset_; }
-    iterator end()   { 
-      _mm_prefetch (g_index_[n_+1], _MM_HINT_NTA);
-      return g_index_[n_+1]; }
+    iterator begin() { return g_index_[n_] + start_offset_; }
+    iterator end()   { return g_index_[n_+1]; }
   };
 
   void ReleaseResources() {

@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <iostream>
 #include <vector>
+#include <stdint.h>
+#include <string.h>
+#include <smmintrin.h> 
 
 #include "benchmark.h"
 #include "builder.h"
@@ -35,17 +38,25 @@ void force_nt_load(NodeID *p) {
   _mm_prefetch (p, _MM_HINT_NTA);
 }
 
-void force_nt_store(__m64 *p, __m64 a) {
-   _mm_stream_pi(p, a);
-}
-
-__m128i force_nt_store(NodeID *a) {
-  __m128i zeros = {0, 0}; // chosen to use zeroing idiom;
-  __asm volatile("MOVNTDQA 64(%1), %0\n\t"
+__m128i force_nt_store(__m128i zeros, NodeID *a) {
+    __asm volatile("MOVNTDQA (%1), %0\n\t"
+                    "MOVNTDQA 16(%1), %0\n\t"
+                    "MOVNTDQA 32(%1), %0\n\t"
+                    "MOVNTDQA 48(%1), %0\n\t"
                    :: "x" (zeros), "r" (&a): "memory");
-  return zeros;
+    return zeros;
 }
 
+// void force_nt_store(__m128i a, NodeID *v) {
+//     // do 4 stores to hit whole cache line
+//     __asm volatile("movntdq %0, (%1)\n\t"
+//                    "movntdq %0, 16(%1)\n\t"
+//                    "movntdq %0, 32(%1)\n\t"
+//                    "movntdq %0, 48(%1)"
+//                    :
+//                    : "x" (a), "r" (&v)
+//                    : "memory");
+// }
 
 pvector<ScoreT> PageRankPullGS(const Graph &g, int max_iters,
                              double epsilon = 0) {
@@ -64,17 +75,23 @@ pvector<ScoreT> PageRankPullGS(const Graph &g, int max_iters,
     // double error = 0;
     #pragma omp parallel for
     for (NodeID u=0; u < g.num_nodes(); u++) {
-      for (NodeID v : g.in_neigh(u)){
-        // force_nt_store(&v);
+      NodeID* itr;
+      for (itr = g.in_neigh(u).begin(); itr < g.in_neigh(u).end(); itr++){
+        __m128i in = {0, 0};
+        __m128i var = force_nt_store(in, itr);
+        NodeID v = (NodeID)var[0];
         if (v < g.num_nodes()/2){
           incoming_total[u] += outgoing_contrib[v];
-          }
+        } else break;
       }
     }
     #pragma omp parallel for
     for (NodeID u=0; u < g.num_nodes(); u++) {
-      for (NodeID v : g.in_neigh(u)){
-        // force_nt_store(&v);
+      NodeID* itr;
+      for (itr = g.in_neigh(u).begin(); itr < g.in_neigh(u).end(); itr++){
+        __m128i in = {0, 0};
+        __m128i var = force_nt_store(in, itr);
+        NodeID v = (NodeID)var[0];
         if ((g.num_nodes()/2) <= v)
           incoming_total[u] += outgoing_contrib_n[v];
       }
