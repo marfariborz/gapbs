@@ -15,7 +15,9 @@
 GAP Benchmark Suite
 Kernel: PageRank (PR)
 Author: Scott Beamer
+
 Will return pagerank scores for all vertices once total change < epsilon
+
 This PR implementation uses the traditional iterative approach. It perform
 updates in the pull direction to remove the need for atomics, and it allows
 new values to be immediately visible (like Gauss-Seidel method). The prior PR
@@ -39,14 +41,26 @@ pvector<ScoreT> PageRankPullGS(const Graph &g, int max_iters,
   for (NodeID n=0; n < g.num_nodes(); n++)
     outgoing_contrib[n] = init_score / g.out_degree(n);
   for (int iter=0; iter < max_iters; iter++) {
+    pvector<ScoreT> incoming_total(g.num_nodes());
     double error = 0;
     #pragma omp parallel for reduction(+ : error) schedule(dynamic, 16384)
     for (NodeID u=0; u < g.num_nodes(); u++) {
-      ScoreT incoming_total = 0;
-      for (NodeID v : g.in_neigh(u))
-        incoming_total += outgoing_contrib[v];
+      incoming_total[u] = 0;
+      for (NodeID v : g.in_neigh(u)){
+        if(v < (g.num_nodes()/2)){
+          incoming_total[u] += outgoing_contrib[v];
+        } else break;
+      }
+    }
+    #pragma omp parallel for reduction(+ : error) schedule(dynamic, 16384)
+    for (NodeID u=0; u < g.num_nodes(); u++) {
+      // incoming_total_n[u] = 0;
+      for (NodeID v : g.in_neigh(u, g.num_nodes()/2))
+        if((g.num_nodes()/2) <= v){
+          incoming_total[u] += outgoing_contrib[v] + incoming_total[u];
+        }
       ScoreT old_score = scores[u];
-      scores[u] = base_score + kDamp * incoming_total;
+      scores[u] = base_score + kDamp * (incoming_total[u] + incoming_total_n[u]);
       error += fabs(scores[u] - old_score);
       outgoing_contrib[u] = scores[u] / g.out_degree(u);
     }
